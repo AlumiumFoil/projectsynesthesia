@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synesthesia Sketchpad</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            text-align: center;
+            padding: 50px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            margin: 0;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        button {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 50px;
+            cursor: pointer;
+            margin: 20px 0;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: scale(1.05);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .status {
+            margin: 20px 0;
+            font-size: 16px;
+        }
+        img {
+            max-width: 100%;
+            border-radius: 10px;
+            margin-top: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Project Synesthesia</h1>
+        <p>Turn audio into art</p>
+        
+        <button id="recordBtn">Record 3 Seconds</button>
+        
+        <div class="status" id="status">Ready to record</div>
+        
+        <div id="imageContainer"></div>
+    </div>
+
+    <script>
+        const recordBtn = document.getElementById('recordBtn');
+        const statusDiv = document.getElementById('status');
+        const imageContainer = document.getElementById('imageContainer');
+        
+        let mediaRecorder = null;
+        let audioChunks = [];
+        
+        recordBtn.addEventListener('click', startRecording);
+        
+        async function startRecording() {
+            try {
+                // Request microphone access
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+                
+                mediaRecorder.onstop = async () => {
+                    statusDiv.textContent = 'Generating artwork...';
+                    
+                    // Create audio blob
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    const formData = new FormData();
+                    formData.append('audio', audioBlob);
+                    
+                    // Send to backend
+                    try {
+                        const response = await fetch('/api/generate', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            statusDiv.textContent = 'Artwork generated!';
+                            if (data.image_url) {
+                                imageContainer.innerHTML = `<img src="${data.image_url}" alt="Generated artwork">`;
+                            } else {
+                                statusDiv.textContent = 'Image generation coming soon!';
+                            }
+                        } else {
+                            statusDiv.textContent = 'Error: ' + data.message;
+                        }
+                    } catch (error) {
+                        statusDiv.textContent = 'Error connecting to backend';
+                        console.error(error);
+                    }
+                    
+                    // Stop all microphone tracks
+                    stream.getTracks().forEach(track => track.stop());
+                };
+                
+                // Start recording
+                mediaRecorder.start();
+                statusDiv.textContent = 'Recording... (3 seconds)';
+                
+                // Stop after 3 seconds
+                setTimeout(() => {
+                    if (mediaRecorder && mediaRecorder.state === 'recording') {
+                        mediaRecorder.stop();
+                    }
+                }, 3000);
+                
+            } catch (error) {
+                statusDiv.textContent = 'Error: Could not access microphone';
+                console.error(error);
+            }
+        }
+        
+        // Test backend connection on page load
+        async function testBackend() {
+            try {
+                const response = await fetch('/api/health');
+                const data = await response.json();
+                console.log('Backend connection:', data);
+            } catch (error) {
+                console.error('Backend not reachable:', error);
+            }
+        }
+        
+        testBackend();
+    </script>
+</body>
+</html>

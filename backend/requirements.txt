@@ -1,0 +1,8 @@
+flask==3.0.0
+flask-cors==4.0.0
+flaskwebgui==1.1.0
+librosa==0.10.1
+numpy==1.24.3
+scipy==1.11.4
+requests==2.31.0
+python-dotenv==1.0.0
