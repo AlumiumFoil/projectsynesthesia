@@ -20,11 +20,61 @@ def health_check():
 # Audio processing endpoint (placeholder for now)
 @app.route('/api/generate', methods=['POST'])
 def generate_art():
-    # Librosa and image generation will go here
-    return jsonify({
-        'success': True,
-        'message': 'Audio received! Processing will be added soon.'
-    })
+    import librosa
+    import numpy as np
+    import tempfile
+    import os
+    
+    # Receive audio file from frontend
+    if 'audio' not in request.files:
+        return jsonify({'success': False, 'message': 'No audio file provided'})
+    
+    audio_file = request.files['audio']
+    
+    # Save temporarily
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp:
+        audio_file.save(tmp.name)
+        temp_path = tmp.name
+    
+    try:
+        # Load audio with Librosa
+        y, sr = librosa.load(temp_path, duration=3.0)
+        
+        # Extract features
+        # Tempo (speed/rhythm)
+        tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+        
+        # Spectral centroid (brightness)
+        centroid = librosa.feature.spectral_centroid(y=y, sr=sr)
+        avg_centroid = float(np.mean(centroid))
+        
+        # Zero crossing rate (noisiness/percussion)
+        zcr = librosa.feature.zero_crossing_rate(y)
+        avg_zcr = float(np.mean(zcr))
+        
+        # RMS energy (volume)
+        rms = librosa.feature.rms(y=y)
+        avg_volume = float(np.mean(rms))
+        
+        # Return features for now - No image generation yet as of 4/13/2026
+        return jsonify({
+            'success': True,
+            'features': {
+                'tempo': round(tempo, 1),
+                'centroid': round(avg_centroid, 0),
+                'zcr': round(avg_zcr, 3),
+                'volume': round(avg_volume, 3)
+            },
+            'message': f'Analyzed: {round(tempo, 1)} BPM, brightness: {round(avg_centroid, 0)}'
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+        
+    finally:
+        # Clean up temp file
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
 
 # Run the app
 if __name__ == '__main__':

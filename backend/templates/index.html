@@ -99,11 +99,11 @@
                         const data = await response.json();
                         
                         if (data.success) {
-                            statusDiv.textContent = 'Artwork generated!';
-                            if (data.image_url) {
+                            if (data.features) {
+                                statusDiv.innerHTML = `Tempo: ${data.features.tempo} BPM | Brightness: ${data.features.centroid}<br>Image generation coming soon...`;
+                            } else if (data.image_url) {
+                                statusDiv.textContent = 'Artwork generated.';
                                 imageContainer.innerHTML = `<img src="${data.image_url}" alt="Generated artwork">`;
-                            } else {
-                                statusDiv.textContent = 'Image generation coming soon!';
                             }
                         } else {
                             statusDiv.textContent = 'Error: ' + data.message;
