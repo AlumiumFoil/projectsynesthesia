@@ -69,6 +69,28 @@ def generate_art():
         rms = librosa.feature.rms(y=y)
         avg_volume = float(np.mean(rms))
 
+        # Spectral rolloff
+        rolloff = librosa.feature.spectral_rolloff(y=y, sr=sr, roll_percent=0.85)
+        avg_rolloff = float(np.mean(rolloff))
+
+        # Spectral bandwidth
+        bandwidth = librosa.feature.spectral_bandwidth(y=y, sr=sr)
+        avg_bandwidth = float(np.mean(bandwidth))
+
+        # Spectral flatness - noise vs tone (0 = pure tone, 1 = white noise)
+        flatness = librosa.feature.spectral_flatness(y=y)
+        avg_flatness = float(np.mean(flatness))
+
+        # First 3 MFCCs - Timbre features
+        mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
+        mfcc1 = float(np.mean(mfccs[0]))  # Overall spectral shape
+        mfcc2 = float(np.mean(mfccs[1]))  # Spectral detail
+        mfcc3 = float(np.mean(mfccs[2]))  # Fine spectral structure
+
+        # Chroma features - Pitch class, maps to colors
+        chroma = librosa.feature.chroma_stft(y=y, sr=sr)
+        dominant_chroma = np.argmax(np.mean(chroma, axis=1))  # Which note is strongest
+
         # =============================================
         # Map audio features to visual descriptions
         # Tempo mapping
@@ -104,11 +126,46 @@ def generate_art():
             intensity = "balanced moderate"
         else:
             intensity = "subtle gentle pastel transparent"
+
+        # Spectral rolloff mapping
+        if avg_rolloff > 5000:
+            rolloff_desc = "bright airy sparkling"
+        elif avg_rolloff > 3000:
+            rolloff_desc = "clear present"
+        else:
+            rolloff_desc = "bassy heavy warm"
+
+        # Spectral bandwidth mapping
+        if avg_bandwidth > 3000:
+            bandwidth_desc = "complex layered rich"
+        elif avg_bandwidth > 1500:
+            bandwidth_desc = "balanced full"
+        else:
+            bandwidth_desc = "pure focused simple"
+
+        # Spectral flatness mapping
+        if avg_flatness > 0.5:
+            flatness_desc = "noisy textured static"
+        elif avg_flatness > 0.2:
+            flatness_desc = "mixed harmonic"
+        else:
+            flatness_desc = "tonal melodic clear"
+
+        # Chroma to color mapping (musical note to visual color)
+        chroma_colors = ["red", "orange", "yellow", "yellow-green", "green", 
+                        "teal", "cyan", "blue", "indigo", "purple", "magenta", "pink"]
+        chroma_color = chroma_colors[dominant_chroma % 12]
+
+        # MFCC-based texture mapping
+        if mfcc1 > 0:
+            texture_detail = "smooth refined"
+        else:
+            texture_detail = "crisp defined"
         
         # =============================================
 
         # Build the prompt
-        prompt = f"Abstract album art, {mood}, {colors}, {texture}, {intensity}, digital art, trending on ArtStation, high quality"
+        prompt = f"Abstract album art, {mood}, {colors}, {texture}, {intensity}, {rolloff_desc}, {bandwidth_desc}, {flatness_desc}, {chroma_color} tones, {texture_detail}, digital art, masterpiece, absurdres, high quality"
         print(f"Generated prompt: {prompt}")  # DEBUGGING
         print(f"Features - Tempo: {tempo:.1f}, Centroid: {avg_centroid:.0f}, ZCR: {avg_zcr:.3f}, Volume: {avg_volume:.3f}")
 
