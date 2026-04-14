@@ -18,15 +18,30 @@
             max-width: 800px;
             margin: 0 auto;
         }
+        .upload-area {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px dashed white;
+            border-radius: 20px;
+            padding: 40px;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .upload-area:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        input[type="file"] {
+            display: none;
+        }
         button {
             background: white;
             color: #667eea;
             border: none;
-            padding: 15px 30px;
-            font-size: 18px;
+            padding: 12px 24px;
+            font-size: 16px;
             border-radius: 50px;
             cursor: pointer;
-            margin: 20px 0;
+            margin: 10px 5px;
             transition: transform 0.2s;
         }
         button:hover {
@@ -35,16 +50,34 @@
         button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+            transform: none;
+        }
+        .file-info {
+            margin: 20px 0;
+            font-size: 14px;
+            opacity: 0.9;
         }
         .status {
             margin: 20px 0;
             font-size: 16px;
+            padding: 10px;
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.2);
         }
         img {
             max-width: 100%;
             border-radius: 10px;
             margin-top: 20px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        .features {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-size: 14px;
+            text-align: left;
+            display: inline-block;
         }
     </style>
 </head>
@@ -53,167 +86,173 @@
         <h1>Project Synesthesia</h1>
         <p>Turn audio into art</p>
         
-        <button id="recordBtn">Record 3 Seconds</button>
+        <div class="upload-area" id="uploadArea">
+            <p>Click or drag an audio file here</p>
+            <p style="font-size: 12px; margin-top: 10px;">Supports: MP3, WAV, OGG, M4A (max 10MB)</p>
+        </div>
+
+        <input type="file" id="fileInput" accept="audio/*">
         
-        <div class="status" id="status">Ready to record</div>
+        <div class="file-info" id="fileInfo"></div>
         
-        <div id="imageContainer"></div>
+        <button id="generateBtn" disabled>Generate Artwork</button>
+        
+        <div class="status" id="status">Select an audio file to begin</div>
+        
+        <div id="resultContainer"></div>
     </div>
 
     <script>
-        const recordBtn = document.getElementById('recordBtn');
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const generateBtn = document.getElementById('generateBtn');
         const statusDiv = document.getElementById('status');
-        const imageContainer = document.getElementById('imageContainer');
+        const fileInfo = document.getElementById('fileInfo');
+        const resultContainer = document.getElementById('resultContainer');
         
-        let mediaRecorder = null;
-        let audioChunks = [];
+        let currentFile = null;
         
-        recordBtn.addEventListener('click', startRecording);
+        // Click upload area to trigger file selection
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
         
-        async function startRecording() {
+        // Handle drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.style.background = 'rgba(255, 255, 255, 0.4)';
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.style.background = 'rgba(255, 255, 255, 0.2)';
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.style.background = 'rgba(255, 255, 255, 0.2)';
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+        
+        // Handle file selection via input
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+                // Clear the input value so the same file can be selected again if needed
+                fileInput.value = '';
+            }
+        });
+        
+        function handleFile(file) {
+            if (!file.type.startsWith('audio/')) {
+                statusDiv.innerHTML = 'Error: Please select an audio file';
+                return;
+            }
+            
+            if (file.size > 10 * 1024 * 1024) {
+                statusDiv.innerHTML = 'Error: File too large (max 10MB)';
+                return;
+            }
+            
+            currentFile = file;
+            fileInfo.innerHTML = `Selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+            generateBtn.disabled = false;
+            statusDiv.innerHTML = 'Ready to generate artwork';
+        }
+        
+        generateBtn.addEventListener('click', generateArtwork);
+        
+        async function generateArtwork() {
+            if (!currentFile) {
+                statusDiv.innerHTML = 'Please select an audio file first';
+                return;
+            }
+            
+            generateBtn.disabled = true;
+            statusDiv.innerHTML = 'Analyzing audio and generating artwork...';
+            resultContainer.innerHTML = '';
+            
+            // Create a new FormData object for each request
+            const formData = new FormData();
+            formData.append('audio', currentFile);
+            
             try {
-                // Request microphone access
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const response = await fetch('/api/generate', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
                 
-                mediaRecorder = new MediaRecorder(stream);
-                audioChunks = [];
-                
-                mediaRecorder.ondataavailable = (event) => {
-                    audioChunks.push(event.data);
-                };
-                
-                mediaRecorder.onstop = async () => {
-                    statusDiv.textContent = 'Generating artwork...';
-                    
-                    // Create audio blob
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                    const formData = new FormData();
-                    formData.append('audio', audioBlob);
-                    
-                    // Send to backend
-                    try {
-                        const response = await fetch('/api/generate', {
-                            method: 'POST',
-                            body: formData
-                        });
-                        const data = await response.json();
+                if (data.success) {
+                    if (data.image_url) {
+                        const img = document.createElement('img');
+                        img.alt = 'Generated artwork';
+                        img.style.maxWidth = '100%';
+                        img.style.borderRadius = '10px';
+                        img.style.marginTop = '20px';
+                        img.style.boxShadow = '0 10px 40px rgba(0,0,0,0.2)';
                         
-                        if (data.success) {
-                            if (data.image_url) {
-                                // Clear previous image
-                                imageContainer.innerHTML = '';
-
-                                // Create a new image element
-                                const img = document.createElement('img');
-                                img.alt = 'Generated artwork';
-                                img.style.maxWidth = '100%';
-                                img.style.borderRadius = '10px';
-                                img.style.marginTop = '20px';
-                                img.style.boxShadow = '0 10px 40px rgba(0,0,0,0.2)';
-
-                                statusDiv.innerHTML = 'Loading generated image...';
-
-                                // Set up an image load handler
-                                img.onload = () => {
-                                    statusDiv.innerHTML = `Artwork generated.<br>
-                                        Tempo: ${data.features.tempo} BPM | 
-                                        Brightness: ${data.features.centroid}<br>
-                                        Texture: ${data.features.zcr} | 
-                                        Volume: ${data.features.volume}<br><br>
-                                        <small>${data.prompt.substring(0, 80)}...</small>`;
-                                };
-
-                                // Handle image loading errors
-                                img.onerror = () => {
-                                    console.error('Image failed to load:', data.image_url);
-                                    statusDiv.innerHTML = `
-                                        Image failed to load.<br><br>
-                                        Audio Features (extracted successfully):<br>
-                                        Tempo: ${data.features.tempo} BPM | 
-                                        Brightness: ${data.features.centroid}<br>
-                                        Texture: ${data.features.zcr} | 
-                                        Volume: ${data.features.volume}<br><br>
-                                        Try recording again with a different sound.<br>
-                                        <small>Prompt used: "${data.prompt.substring(0, 150)}..."</small>
-                                    `;
-                    
-                                    // Create a fallback colored square based on audio features
-                                    const fallbackDiv = document.createElement('div');
-                    
-                                    // Calculate colors based on audio features
-                                    const hue = (data.features.centroid % 360);
-                                    const saturation = Math.min(100, Math.max(30, data.features.volume * 100));
-                                    const lightness = Math.min(70, Math.max(30, data.features.tempo / 240 * 70));
-                    
-                                    fallbackDiv.style.width = '512px';
-                                    fallbackDiv.style.height = '512px';
-                                    fallbackDiv.style.background = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-                                    fallbackDiv.style.borderRadius = '10px';
-                                    fallbackDiv.style.marginTop = '20px';
-                                    fallbackDiv.style.display = 'flex';
-                                    fallbackDiv.style.alignItems = 'center';
-                                    fallbackDiv.style.justifyContent = 'center';
-                                    fallbackDiv.style.color = 'white';
-                                    fallbackDiv.style.fontSize = '18px';
-                                    fallbackDiv.style.textAlign = 'center';
-                                    fallbackDiv.style.padding = '20px';
-                                    fallbackDiv.style.boxShadow = '0 10px 40px rgba(0,0,0,0.2)';
-                                    fallbackDiv.innerHTML = `
-                                        Visual representation of your audio<br><br>
-                                        ${data.features.tempo} BPM | ${data.features.centroid}<br><br>
-                                        (Image generation pending - try again)
-                                    `;
-                    
-                                    imageContainer.appendChild(fallbackDiv);
-                                };
-
-                                // Set the image source after setting up event handlers
-                                img.src = data.image_url;
-                                imageContainer.appendChild(img);
-
-                            } else if (data.features) {
-                                // Fallback: Show just the features if no image URL
-                                statusDiv.innerHTML = `
-                                    Audio analyzed successfully!<br><br>
-                                    Extracted Features:<br>
+                        img.onload = () => {
+                            statusDiv.innerHTML = `
+                                Artwork generated successfully
+                                <div class="features">
                                     Tempo: ${data.features.tempo} BPM<br>
-                                    Spectral Centroid (Brightness): ${data.features.centroid}<br>
-                                    Zero Crossing Rate (Texture): ${data.features.zcr}<br>
-                                    Volume: ${data.features.volume}<br><br>
-                                    Image generation will be added soon!
-                                `;
-                            } else {
-                                statusDiv.textContent = 'Unexpected response from server';
-                            }
-                        } else {
-                            // Handle server error
-                            statusDiv.innerHTML = `Error: ${data.message}<br><br>Please try recording again.`;
-                            console.error('Server error:', data);
-                        }
-
-                    } catch (error) {
-                        statusDiv.innerHTML = 'Network error: Could not connect to backend.<br><br>Make sure the Flask server is running.';
-                        console.error('Fetch error:', error);
+                                    Brightness: ${data.features.centroid}<br>
+                                    Texture: ${data.features.zcr}<br>
+                                    Volume: ${data.features.volume}
+                                </div>
+                            `;
+                        };
+                        
+                        img.onerror = () => {
+                            statusDiv.innerHTML = `
+                                Image failed to load, but audio was analyzed.
+                                <div class="features">
+                                    Tempo: ${data.features.tempo} BPM<br>
+                                    Brightness: ${data.features.centroid}<br>
+                                    Texture: ${data.features.zcr}<br>
+                                    Volume: ${data.features.volume}
+                                </div>
+                            `;
+                            
+                            const fallbackDiv = document.createElement('div');
+                            fallbackDiv.style.width = '512px';
+                            fallbackDiv.style.height = '512px';
+                            fallbackDiv.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                            fallbackDiv.style.borderRadius = '10px';
+                            fallbackDiv.style.marginTop = '20px';
+                            fallbackDiv.style.display = 'flex';
+                            fallbackDiv.style.alignItems = 'center';
+                            fallbackDiv.style.justifyContent = 'center';
+                            fallbackDiv.style.color = 'white';
+                            fallbackDiv.innerHTML = 'Artwork preview (generation pending)';
+                            resultContainer.appendChild(fallbackDiv);
+                        };
+                        
+                        img.src = data.image_url;
+                        resultContainer.appendChild(img);
+                    } else if (data.features) {
+                        statusDiv.innerHTML = `
+                            Audio analyzed successfully
+                            <div class="features">
+                                Tempo: ${data.features.tempo} BPM<br>
+                                Brightness: ${data.features.centroid}<br>
+                                Texture: ${data.features.zcr}<br>
+                                Volume: ${data.features.volume}
+                            </div>
+                        `;
                     }
-                    
-                    // Stop all microphone tracks
-                    stream.getTracks().forEach(track => track.stop());
-                };
-                
-                // Start recording
-                mediaRecorder.start();
-                statusDiv.textContent = 'Recording... (3 seconds)';
-                
-                // Stop after 3 seconds
-                setTimeout(() => {
-                    if (mediaRecorder && mediaRecorder.state === 'recording') {
-                        mediaRecorder.stop();
-                    }
-                }, 3000);
-                
+                } else {
+                    statusDiv.innerHTML = 'Error: ' + data.message;
+                }
             } catch (error) {
-                statusDiv.textContent = 'Error: Could not access microphone';
-                console.error(error);
+                statusDiv.innerHTML = 'Error: Could not connect to backend. Make sure the server is running.';
+                console.error('Fetch error:', error);
+            } finally {
+                generateBtn.disabled = false;
             }
         }
         
@@ -222,9 +261,10 @@
             try {
                 const response = await fetch('/api/health');
                 const data = await response.json();
-                console.log('Backend connection:', data);
+                console.log('Backend connected:', data);
             } catch (error) {
                 console.error('Backend not reachable:', error);
+                statusDiv.innerHTML = 'Backend not connected. Run python app.py';
             }
         }
         
