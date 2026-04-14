@@ -99,18 +99,101 @@
                         const data = await response.json();
                         
                         if (data.success) {
-                            if (data.features) {
-                                statusDiv.innerHTML = `Tempo: ${data.features.tempo} BPM | Brightness: ${data.features.centroid}<br>Image generation coming soon...`;
-                            } else if (data.image_url) {
-                                statusDiv.textContent = 'Artwork generated.';
-                                imageContainer.innerHTML = `<img src="${data.image_url}" alt="Generated artwork">`;
+                            if (data.image_url) {
+                                // Clear previous image
+                                imageContainer.innerHTML = '';
+
+                                // Create a new image element
+                                const img = document.createElement('img');
+                                img.alt = 'Generated artwork';
+                                img.style.maxWidth = '100%';
+                                img.style.borderRadius = '10px';
+                                img.style.marginTop = '20px';
+                                img.style.boxShadow = '0 10px 40px rgba(0,0,0,0.2)';
+
+                                statusDiv.innerHTML = 'Loading generated image...';
+
+                                // Set up an image load handler
+                                img.onload = () => {
+                                    statusDiv.innerHTML = `Artwork generated.<br>
+                                        Tempo: ${data.features.tempo} BPM | 
+                                        Brightness: ${data.features.centroid}<br>
+                                        Texture: ${data.features.zcr} | 
+                                        Volume: ${data.features.volume}<br><br>
+                                        <small>${data.prompt.substring(0, 80)}...</small>`;
+                                };
+
+                                // Handle image loading errors
+                                img.onerror = () => {
+                                    console.error('Image failed to load:', data.image_url);
+                                    statusDiv.innerHTML = `
+                                        Image failed to load.<br><br>
+                                        Audio Features (extracted successfully):<br>
+                                        Tempo: ${data.features.tempo} BPM | 
+                                        Brightness: ${data.features.centroid}<br>
+                                        Texture: ${data.features.zcr} | 
+                                        Volume: ${data.features.volume}<br><br>
+                                        Try recording again with a different sound.<br>
+                                        <small>Prompt used: "${data.prompt.substring(0, 150)}..."</small>
+                                    `;
+                    
+                                    // Create a fallback colored square based on audio features
+                                    const fallbackDiv = document.createElement('div');
+                    
+                                    // Calculate colors based on audio features
+                                    const hue = (data.features.centroid % 360);
+                                    const saturation = Math.min(100, Math.max(30, data.features.volume * 100));
+                                    const lightness = Math.min(70, Math.max(30, data.features.tempo / 240 * 70));
+                    
+                                    fallbackDiv.style.width = '512px';
+                                    fallbackDiv.style.height = '512px';
+                                    fallbackDiv.style.background = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+                                    fallbackDiv.style.borderRadius = '10px';
+                                    fallbackDiv.style.marginTop = '20px';
+                                    fallbackDiv.style.display = 'flex';
+                                    fallbackDiv.style.alignItems = 'center';
+                                    fallbackDiv.style.justifyContent = 'center';
+                                    fallbackDiv.style.color = 'white';
+                                    fallbackDiv.style.fontSize = '18px';
+                                    fallbackDiv.style.textAlign = 'center';
+                                    fallbackDiv.style.padding = '20px';
+                                    fallbackDiv.style.boxShadow = '0 10px 40px rgba(0,0,0,0.2)';
+                                    fallbackDiv.innerHTML = `
+                                        Visual representation of your audio<br><br>
+                                        ${data.features.tempo} BPM | ${data.features.centroid}<br><br>
+                                        (Image generation pending - try again)
+                                    `;
+                    
+                                    imageContainer.appendChild(fallbackDiv);
+                                };
+
+                                // Set the image source after setting up event handlers
+                                img.src = data.image_url;
+                                imageContainer.appendChild(img);
+
+                            } else if (data.features) {
+                                // Fallback: Show just the features if no image URL
+                                statusDiv.innerHTML = `
+                                    Audio analyzed successfully!<br><br>
+                                    Extracted Features:<br>
+                                    Tempo: ${data.features.tempo} BPM<br>
+                                    Spectral Centroid (Brightness): ${data.features.centroid}<br>
+                                    Zero Crossing Rate (Texture): ${data.features.zcr}<br>
+                                    Volume: ${data.features.volume}<br><br>
+                                    Image generation will be added soon!
+                                `;
+                            } else {
+                                statusDiv.textContent = 'Unexpected response from server';
                             }
                         } else {
-                            statusDiv.textContent = 'Error: ' + data.message;
+                            // Handle server error
+                            statusDiv.innerHTML = `Error: ${data.message}<br><br>Please try recording again.`;
+                            console.error('Server error:', data);
                         }
+
                     } catch (error) {
-                        statusDiv.textContent = 'Error connecting to backend';
-                        console.error(error);
+                        statusDiv.innerHTML = 'Network error: Could not connect to backend.<br><br>Make sure the Flask server is running.';
+                        console.error('Fetch error:', error);
                     }
                     
                     // Stop all microphone tracks
