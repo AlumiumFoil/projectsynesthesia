@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Synesthesia</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;1,9..40,400&family=Outfit:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <!-- main.js must load before p5 so setup()/draw() exist when p5 boots -->
+  <script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.3/p5.min.js" defer></script>
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <h1>Project Synesthesia</h1>
+      <p>Record or upload a short clip. We analyze tempo, loudness, brightness, and rhythm, then map them to a text prompt for future generative art.</p>
+    </header>
+
+    <section class="panel">
+      <h2>Audio</h2>
+      <p class="hint">Web Audio API capture + upload. Waveform drawn with p5.js. Sending WAV to Flask keeps analysis reliable without extra codecs on the server.</p>
+      <div class="toolbar">
+        <button type="button" id="recordBtn">Record 4s</button>
+        <label class="file-btn secondary">
+          Upload audio
+          <input id="fileInput" type="file" accept="audio/*">
+        </label>
+        <button type="button" id="analyzeBtn" disabled>Analyze &amp; map prompt</button>
+      </div>
+      <div id="waveform-host" aria-label="Waveform visualization"></div>
+      <p class="status" id="status">Ready.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Extracted features</h2>
+      <p class="hint">Librosa + NumPy on the server (normalized levels, light noise gate).</p>
+      <ul class="meta" id="featureList"></ul>
+      <div class="chips" id="labelChips"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Rule-based prompt preview</h2>
+      <p class="hint">Week 3: deterministic mapping only — no LLM yet. This string is what you would feed GPT / SD later.</p>
+      <div class="prompt-box" id="promptPreview">Run analysis to see prompt text.</div>
+    </section>
+
+    <section class="panel roadmap">
+      <h2>Prototype scope (your timeline)</h2>
+      <ul>
+        <li><strong>Weeks 1–3 (here):</strong> environment, UI + waveform, Flask + librosa + feature → prompt mapping.</li>
+        <li><strong>Next:</strong> OpenAI prompt refinement, Replicate image generation, sliders, download.</li>
+      </ul>
+    </section>
+  </div>
+</body>
+</html>
