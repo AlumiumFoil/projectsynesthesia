@@ -3,121 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Synesthesia Sketchpad</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            text-align: center;
-            padding: 50px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            margin: 0;
-            min-height: 100vh;
-        }
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-        .upload-area {
-            background: rgba(255, 255, 255, 0.2);
-            border: 2px dashed white;
-            border-radius: 20px;
-            padding: 40px;
-            margin: 20px 0;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-        .upload-area:hover {
-            background: rgba(255, 255, 255, 0.3);
-        }
-        input[type="file"] {
-            display: none;
-        }
-        button {
-            background: white;
-            color: #667eea;
-            border: none;
-            padding: 12px 24px;
-            font-size: 16px;
-            border-radius: 50px;
-            cursor: pointer;
-            margin: 10px 5px;
-            transition: transform 0.2s;
-        }
-        button:hover {
-            transform: scale(1.05);
-        }
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-        .file-info {
-            margin: 20px 0;
-            font-size: 14px;
-            opacity: 0.9;
-        }
-        .status {
-            margin: 20px 0;
-            font-size: 16px;
-            padding: 10px;
-            border-radius: 10px;
-            background: rgba(0, 0, 0, 0.2);
-        }
-        img {
-            max-width: 100%;
-            border-radius: 10px;
-            margin-top: 20px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-        }
-        .features {
-            background: rgba(0, 0, 0, 0.3);
-            padding: 15px;
-            border-radius: 10px;
-            margin: 20px 0;
-            font-size: 14px;
-            text-align: left;
-            display: inline-block;
-        }
-    </style>
+    <title>Project Synesthesia</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
 <body>
-    <div class="container">
-        <h1>Project Synesthesia</h1>
-        <p>Turn audio into art</p>
-        
-        <div class="upload-area" id="uploadArea">
-            <p>Click or drag an audio file here</p>
-            <p style="font-size: 12px; margin-top: 10px;">Supports: MP3, WAV, OGG, M4A (max 10MB)</p>
+    <div class="page">
+        <div class="hero">
+            <h1>Project Synesthesia</h1>
+            <p>Turn audio into art</p>
         </div>
 
-        <input type="file" id="fileInput" accept="audio/*">
-        
-        <div class="file-info" id="fileInfo"></div>
+        <!-- Upload Area -->
+        <div class="panel">
+            <h2>Audio file</h2>
+            <div class="toolbar">
+                <div class="file-btn">
+                    Select audio file
+                    <input type="file" id="fileInput" accept="audio/*">
+                </div>
+                <button id="generateBtn" disabled>Generate artwork</button>
+            </div>
+            <div class="file-info" id="fileInfo"></div>
+        </div>
 
-        <div style="background: rgba(255, 255, 255, 0.15); border-radius: 20px; padding: 20px; margin: 20px 0;">
-            <h3 style="margin-bottom: 15px;">Song Information (Optional)</h3>
-            <p style="font-size: 12px; opacity: 0.8;">Helps find lyrics for better artwork</p>
-            
-            <div style="display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;">
-                <div>
-                    <label style="display: block; font-size: 12px; margin-bottom: 5px;">Song Title</label>
-                    <input type="text" id="songTitle" placeholder="Enter song title" 
-                        style="padding: 8px; border-radius: 5px; border: none; width: 200px;">
-                </div>
-                <div>
-                    <label style="display: block; font-size: 12px; margin-bottom: 5px;">Artist Name</label>
-                    <input type="text" id="songArtist" placeholder="Enter artist name" 
-                        style="padding: 8px; border-radius: 5px; border: none; width: 200px;">
-                </div>
+        <!-- Song Information -->
+        <div class="panel">
+            <h2>Song information <span class="hint">(optional, improves results)</span></h2>
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                <input type="text" id="songTitle" placeholder="Song title" 
+                       style="flex:1; background: var(--border); border: none; padding: 0.65rem; border-radius: 10px; color: var(--text);">
+                <input type="text" id="songArtist" placeholder="Artist name" 
+                       style="flex:1; background: var(--border); border: none; padding: 0.65rem; border-radius: 10px; color: var(--text);">
             </div>
         </div>
-        
-        <button id="generateBtn" disabled>Generate Artwork</button>
-        
-        <div class="status" id="status">Select an audio file to begin</div>
-        
-        <div id="resultContainer"></div>
+
+        <!-- Status -->
+        <div class="panel">
+            <div class="status" id="status">Select an audio file to begin</div>
+        </div>
+
+        <!-- Results -->
+        <div class="panel" id="resultPanel">
+            <h2>Generated artwork</h2>
+            <div id="resultContainer"></div>
+        </div>
     </div>
 
     <script>
