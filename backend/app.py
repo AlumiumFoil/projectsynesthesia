@@ -4,6 +4,12 @@ from flaskwebgui import FlaskUI
 import os
 import tempfile
 import urllib.parse
+import requests
+import random
+import librosa
+import numpy as np
+import syncedlyrics
+from mutagen import File as MutagenFile
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -16,6 +22,137 @@ def pollinations_gen_img(prompt):
     encoded_prompt = urllib.parse.quote(prompt)
     url = f"https://pollinations.ai/p/{encoded_prompt}?width=512&height=512"
     return url  # Returns a URL to the generated image
+
+def extract_metadata_and_lyrics(audio_path, user_title=None, user_artist=None):
+    """Extract artist and title from audio file metadata or use user input, then fetch lyrics"""
+    try:
+        artist = user_artist
+        title = user_title
+        
+        # If user didn't provide info, try to extract from metadata
+        if not artist or not title:
+            # Extract metadata using mutagen
+            audio = MutagenFile(audio_path)
+            
+            # Try standard tag formats
+            if hasattr(audio, 'get'):
+                if not artist:
+                    artist = audio.get('artist', [None])[0]
+                if not title:
+                    title = audio.get('title', [None])[0]
+            
+            # Handle MP4/M4A tags
+            if not artist and '©ART' in audio:
+                artist = str(audio['©ART'][0])
+            if not title and '©nam' in audio:
+                title = str(audio['©nam'][0])
+            
+            # Handle ID3 tags (MP3 format)
+            if not artist and 'TPE1' in audio:
+                artist = str(audio['TPE1'].text[0])
+            if not title and 'TIT2' in audio:
+                title = str(audio['TIT2'].text[0])
+        
+        # If we have either title or artist, try to fetch lyrics
+        if title or artist:
+            print(f"Searching lyrics - Artist: {artist}, Title: {title}")
+            return fetch_lyrics_from_title_artist(title, artist)
+        else:
+            print("No title or artist found for lyrics search")
+            return ""
+            
+    except Exception as e:
+        print(f"Metadata extraction failed: {e}")
+        return ""
+
+
+def extract_keywords_from_lyrics(lyrics):
+    """Extract key themes, emotions, and imagery from lyrics using keyword extraction"""
+    if not lyrics or len(lyrics.strip()) < 20:
+        return ""
+    
+    try:
+        # Common words to ignore (stopwords)
+        stopwords = {'the', 'and', 'to', 'of', 'a', 'in', 'is', 'it', 'you', 'that', 
+                     'was', 'for', 'on', 'are', 'with', 'as', 'i', 'be', 'this', 'have',
+                     'from', 'at', 'by', 'not', 'but', 'what', 'all', 'were', 'when',
+                     'your', 'can', 'said', 'there', 'use', 'an', 'each', 'which', 'she',
+                     'do', 'how', 'their', 'if', 'will', 'up', 'other', 'about', 'out',
+                     'many', 'then', 'them', 'these', 'so', 'some', 'her', 'would', 'make',
+                     'like', 'him', 'into', 'time', 'has', 'look', 'two', 'more', 'write',
+                     'go', 'see', 'number', 'no', 'way', 'could', 'people', 'than', 'first',
+                     'water', 'been', 'call', 'who', 'oil', 'its', 'now', 'find', 'long',
+                     'down', 'day', 'did', 'get', 'come', 'made', 'may', 'part'}
+        
+        # Convert to lowercase and split into words
+        words = lyrics.lower().split()
+        
+        # Filter out stopwords and short words, count frequencies
+        word_freq = {}
+        for word in words:
+            # Remove punctuation
+            clean_word = word.strip('.,!?;:()[]\'"')
+            if len(clean_word) > 3 and clean_word not in stopwords:
+                word_freq[clean_word] = word_freq.get(clean_word, 0) + 1
+        
+        # Get top 8-10 keywords
+        sorted_words = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)
+        top_keywords = [word for word, count in sorted_words[:10] if len(word) > 3]
+        
+        # Also look for emotional indicator words
+        emotion_words = {
+            'love', 'happy', 'sad', 'cry', 'pain', 'joy', 'heart', 'broken', 
+            'dream', 'night', 'light', 'dark', 'fire', 'rain', 'sun', 'moon',
+            'star', 'angel', 'demon', 'heaven', 'hell', 'free', 'lost', 'found'
+        }
+        
+        emotions_found = [word for word in words if word in emotion_words]
+        
+        # Combine keywords and unique emotions
+        all_keywords = list(set(top_keywords + emotions_found[:3]))
+        
+        if all_keywords:
+            keyword_string = ", ".join(all_keywords[:8])
+            print(f"Extracted keywords: {keyword_string}")
+            return keyword_string
+        else:
+            return ""
+            
+    except Exception as e:
+        print(f"Keyword extraction failed: {e}")
+        return ""
+
+def fetch_lyrics_from_title_artist(title, artist):
+    """Fetch lyrics using song title and artist name with syncedlyrics"""
+    if not title and not artist:
+        return ""
+    
+    try:
+        # Build search query
+        if title and artist:
+            search_query = f"{title} {artist}"
+        elif title:
+            search_query = title
+        else:
+            search_query = artist
+        
+        print(f"Searching syncedlyrics with query: {search_query}")
+        lyrics = syncedlyrics.search(search_query)
+        
+        if lyrics:
+            print(f"Successfully fetched lyrics ({len(lyrics)} characters)")
+            # Clean LRC timestamps if present
+            import re
+            plain_lyrics = re.sub(r'\[\d{2}:\d{2}\.\d{2}\]', '', lyrics)
+            plain_lyrics = re.sub(r'\n\s*\n', '\n', plain_lyrics).strip()
+            return plain_lyrics
+        else:
+            print("No lyrics found for this query")
+            return ""
+            
+    except Exception as e:
+        print(f"Lyrics fetch failed: {e}")
+        return ""
 
 # Home page route
 @app.route('/')
@@ -30,19 +167,15 @@ def health_check():
 # Audio processing endpoint (placeholder for now)
 @app.route('/api/generate', methods=['POST'])
 def generate_art():
-    import librosa
-    import numpy as np
-    import tempfile
-    import os
-    import urllib.parse
-    import requests
-    import random
-    
     # Receive audio file from frontend
     if 'audio' not in request.files:
         return jsonify({'success': False, 'message': 'No audio file provided'})
     
     audio_file = request.files['audio']
+
+    # Get optional user inputs
+    user_title = request.form.get('song_title', '')
+    user_artist = request.form.get('song_artist', '')
     
     # Save temporarily
     with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp:
@@ -92,6 +225,26 @@ def generate_art():
         dominant_chroma = np.argmax(np.mean(chroma, axis=1))  # Which note is strongest
 
         # =============================================
+
+        print("Attempting to extract lyrics from audio file...")
+        lyrics_text = ""
+        keywords = ""
+        lyrics_source = None
+
+        # Get lyrics using user input (if provided) or file metadata
+        print("Attempting to extract lyrics...")
+        lyrics_text = extract_metadata_and_lyrics(temp_path, user_title, user_artist)
+        if lyrics_text:
+            lyrics_source = "user_input" if (user_title or user_artist) else "metadata"
+            print(f"Lyrics found via {lyrics_source}")
+            keywords = extract_keywords_from_lyrics(lyrics_text)
+            if keywords:
+                print(f"Extracted keywords: {keywords}")
+        else:
+            print("No lyrics found for this audio file")
+
+        # =============================================
+
         # Map audio features to visual descriptions
         # Tempo mapping
         if tempo > 120:
@@ -165,13 +318,14 @@ def generate_art():
         # =============================================
 
         # Build the prompt
-        prompt = f"Abstract album art, {mood}, {colors}, {texture}, {intensity}, {rolloff_desc}, {bandwidth_desc}, {flatness_desc}, {chroma_color} tones, {texture_detail}, digital art, masterpiece, absurdres, high quality"
-        print(f"Generated prompt: {prompt}")  # DEBUGGING
+        if keywords:
+            prompt = f"Abstract album art, evoking feelings and themes of {keywords}, {mood}, {colors}, {texture}, {intensity}, {rolloff_desc}, {bandwidth_desc}, {flatness_desc}, {chroma_color} tones, {texture_detail}, digital art, masterpiece, absurdres, high quality"
+            print(f"Keywords: {keywords}")
+        else:
+            prompt = f"Abstract album art, {mood}, {colors}, {texture}, {intensity}, {rolloff_desc}, {bandwidth_desc}, {flatness_desc}, {chroma_color} tones, {texture_detail}, digital art, masterpiece, absurdres, high quality"
         print(f"Features - Tempo: {tempo:.1f}, Centroid: {avg_centroid:.0f}, ZCR: {avg_zcr:.3f}, Volume: {avg_volume:.3f}")
 
         # Generate image
-        import random
-
         encoded_prompt = urllib.parse.quote(prompt)
 
         # Generate random seed
@@ -202,6 +356,9 @@ def generate_art():
                 'zcr': round(avg_zcr, 3),
                 'volume': round(avg_volume, 3)
             },
+            'has_lyrics': bool(lyrics_text),
+            'keywords': keywords if keywords else None,
+            'lyrics_source': lyrics_source,
             'prompt': prompt
         })
         

@@ -94,6 +94,24 @@
         <input type="file" id="fileInput" accept="audio/*">
         
         <div class="file-info" id="fileInfo"></div>
+
+        <div style="background: rgba(255, 255, 255, 0.15); border-radius: 20px; padding: 20px; margin: 20px 0;">
+            <h3 style="margin-bottom: 15px;">Song Information (Optional)</h3>
+            <p style="font-size: 12px; opacity: 0.8;">Helps find lyrics for better artwork</p>
+            
+            <div style="display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;">
+                <div>
+                    <label style="display: block; font-size: 12px; margin-bottom: 5px;">Song Title</label>
+                    <input type="text" id="songTitle" placeholder="Enter song title" 
+                        style="padding: 8px; border-radius: 5px; border: none; width: 200px;">
+                </div>
+                <div>
+                    <label style="display: block; font-size: 12px; margin-bottom: 5px;">Artist Name</label>
+                    <input type="text" id="songArtist" placeholder="Enter artist name" 
+                        style="padding: 8px; border-radius: 5px; border: none; width: 200px;">
+                </div>
+            </div>
+        </div>
         
         <button id="generateBtn" disabled>Generate Artwork</button>
         
@@ -178,6 +196,17 @@
             // Create a new FormData object for each request
             const formData = new FormData();
             formData.append('audio', currentFile);
+
+            // Get optional song info from user inputs
+            const songTitleValue = document.getElementById('songTitle').value.trim();
+            const songArtistValue = document.getElementById('songArtist').value.trim();
+            
+            if (songTitleValue) {
+                formData.append('song_title', songTitleValue);
+            }
+            if (songArtistValue) {
+                formData.append('song_artist', songArtistValue);
+            }
             
             try {
                 const response = await fetch('/api/generate', {
@@ -196,6 +225,17 @@
                         img.style.boxShadow = '0 10px 40px rgba(0,0,0,0.2)';
                         
                         img.onload = () => {
+                            let lyricsStatus = '';
+                            if (data.keywords) {
+                                lyricsStatus = `<div class="features" style="margin-top: 10px;">
+                                                    Lyrics keywords: ${data.keywords}
+                                                </div>`;
+                            } else if (data.has_lyrics === false) {
+                                lyricsStatus = `<div class="features" style="margin-top: 10px;">
+                                                    No lyrics found - using audio-only analysis
+                                                </div>`;
+                            }
+
                             statusDiv.innerHTML = `
                                 Artwork generated successfully
                                 <div class="features">
