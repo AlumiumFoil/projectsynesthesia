@@ -14,45 +14,56 @@
             <p>Turn audio into art</p>
         </div>
 
-        <!-- Upload Area -->
-        <div class="panel">
-            <h2>Audio file</h2>
-            <div class="toolbar">
-                <div class="file-btn" id="uploadArea">
-                    Select audio file
-                    <input type="file" id="fileInput" accept="audio/*">
+        <div class="two-column">
+            <!-- LEFT COLUMN -->
+            <div class="left-column">
+                <!-- Upload Area -->
+                <div class="panel">
+                    <h2>Audio File Upload</h2>
+                    <div class="toolbar">
+                        <div class="file-btn" id="uploadArea">
+                            Select Audio File
+                            <input type="file" id="fileInput" accept="audio/*">
+                        </div>
+                        <button id="generateBtn" disabled>Generate Artwork</button>
+                    </div>
+                    <div class="file-info" id="fileInfo"></div>
                 </div>
-                <button id="generateBtn" disabled>Generate artwork</button>
+
+                <!-- Song Information -->
+                <div class="panel">
+                    <h2>Additional Song Information <span class="hint">(optional, improves results)</span></h2>
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <input type="text" id="songTitle" placeholder="Song Title" 
+                            style="width: 100%; background: var(--border); border: none; padding: 0.65rem; border-radius: 10px; color: var(--text);">
+                        <input type="text" id="songArtist" placeholder="Artist Name" 
+                            style="width: 100%; background: var(--border); border: none; padding: 0.65rem; border-radius: 10px; color: var(--text);">
+                    </div>
+                </div>
+
+                <!-- Status -->
+                <div class="panel">
+                    <h2>Analysis results</h2>
+                    <div class="status" id="status">Select an audio file to begin</div>
+                    <div id="analysisDetails" style="display: none; margin-top: 1rem;"></div>
+                </div>
             </div>
-            <div class="file-info" id="fileInfo"></div>
-        </div>
 
-        <!-- Waveform Visualization -->
-        <div class="panel">
-            <h2>Waveform visualization</h2>
-            <div id="waveform-host" style="min-height: 140px;"></div>
-        </div>
+            <!-- RIGHT COLUMN -->
+            <div class="right-column">
+                <!-- Audio Preview (Waveform + Player) -->
+                <div class="panel" id="audioPreviewPanel" style="display: none;">
+                    <h2>Audio Preview</h2>
+                    <div id="waveform-host" style="min-height: 100px; margin-bottom: 1rem;"></div>
+                    <audio id="audioPlayer" controls style="width: 100%; border-radius: 10px;"></audio>
+                </div>
 
-        <!-- Song Information -->
-        <div class="panel">
-            <h2>Song information <span class="hint">(optional, improves results)</span></h2>
-            <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
-                <input type="text" id="songTitle" placeholder="Song title" 
-                       style="flex:1; background: var(--border); border: none; padding: 0.65rem; border-radius: 10px; color: var(--text);">
-                <input type="text" id="songArtist" placeholder="Artist name" 
-                       style="flex:1; background: var(--border); border: none; padding: 0.65rem; border-radius: 10px; color: var(--text);">
+                <!-- Results -->
+                <div class="panel" id="resultPanel">
+                    <h2>Generated Artwork</h2>
+                    <div id="resultContainer"></div>
+                </div>
             </div>
-        </div>
-
-        <!-- Status -->
-        <div class="panel">
-            <div class="status" id="status">Select an audio file to begin</div>
-        </div>
-
-        <!-- Results -->
-        <div class="panel" id="resultPanel">
-            <h2>Generated artwork</h2>
-            <div id="resultContainer"></div>
         </div>
     </div>
 
@@ -63,6 +74,9 @@
         const statusDiv = document.getElementById('status');
         const fileInfo = document.getElementById('fileInfo');
         const resultContainer = document.getElementById('resultContainer');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const audioPreviewPanel = document.getElementById('audioPreviewPanel');
+        let currentAudioUrl = null;
         
         let waveformPeaks = null;
         let currentFile = null;
@@ -176,6 +190,9 @@
             generateBtn.disabled = false;
             statusDiv.innerHTML = 'Ready to generate artwork';
             
+            // Setup audio player
+            setupAudioPlayer(file);
+            
             // Generate waveform visualization
             try {
                 const audioBuffer = await fileToAudioBuffer(file);
@@ -185,6 +202,26 @@
             } catch (err) {
                 console.error('Waveform generation failed:', err);
             }
+        }
+
+        // Audio player functions
+        function setupAudioPlayer(file) {
+            // Revoke old URL to prevent memory leaks
+            if (currentAudioUrl) {
+                URL.revokeObjectURL(currentAudioUrl);
+            }
+            
+            // Create new URL for the audio file
+            currentAudioUrl = URL.createObjectURL(file);
+            
+            // Set the audio player source
+            audioPlayer.src = currentAudioUrl;
+
+            // Set default volume (0.0 to 1.0)
+            audioPlayer.volume = 0.5;  // 50% volume
+            
+            // Show the combined audio preview panel
+            audioPreviewPanel.style.display = 'block';
         }
         
         // Click upload area to trigger file selection
@@ -265,39 +302,91 @@
                         img.style.boxShadow = '0 10px 40px rgba(0,0,0,0.2)';
                         
                         img.onload = () => {
-                            let lyricsStatus = '';
-                            if (data.keywords) {
-                                lyricsStatus = `<div class="features" style="margin-top: 10px;">
-                                                    Lyrics keywords: ${data.keywords}
-                                                </div>`;
-                            } else if (data.has_lyrics === false) {
-                                lyricsStatus = `<div class="features" style="margin-top: 10px;">
-                                                    No lyrics found - using audio-only analysis
-                                                </div>`;
-                            }
-
-                            statusDiv.innerHTML = `
-                                Artwork generated successfully
-                                <div class="features">
-                                    Tempo: ${data.features.tempo} BPM<br>
-                                    Brightness: ${data.features.centroid}<br>
-                                    Texture: ${data.features.zcr}<br>
-                                    Volume: ${data.features.volume}
+                            // Build analysis details HTML
+                            let analysisHtml = `
+                                <div class="features-grid">
+                                    <div class="feature-item">
+                                        <span class="feature-label">Tempo</span>
+                                        <span class="feature-value">${data.features.tempo} BPM</span>
+                                    </div>
+                                    <div class="feature-item">
+                                        <span class="feature-label">Brightness</span>
+                                        <span class="feature-value">${data.features.centroid}</span>
+                                    </div>
+                                    <div class="feature-item">
+                                        <span class="feature-label">Texture</span>
+                                        <span class="feature-value">${data.features.zcr}</span>
+                                    </div>
+                                    <div class="feature-item">
+                                        <span class="feature-label">Volume</span>
+                                        <span class="feature-value">${data.features.volume}</span>
+                                    </div>
                                 </div>
-                                ${lyricsStatus}
                             `;
+                            
+                            // Add keywords if present
+                            if (data.keywords) {
+                                const keywordsArray = data.keywords.split(', ');
+                                analysisHtml += `
+                                    <div class="keywords-section">
+                                        <div class="keywords-label">Extracted keywords</div>
+                                        <div class="keywords-list">
+                                            ${keywordsArray.map(k => `<span class="keyword-chip">${k}</span>`).join('')}
+                                        </div>
+                                    </div>
+                                `;
+                            } else if (data.has_lyrics === false) {
+                                analysisHtml += `
+                                    <div class="keywords-section">
+                                        <div class="keywords-label">Lyrics</div>
+                                        <div class="no-lyrics">No lyrics found - using audio-only analysis</div>
+                                    </div>
+                                `;
+                            }
+                            
+                            // Update the status and analysis details
+                            statusDiv.innerHTML = 'Artwork generated successfully';
+                            statusDiv.classList.add('ok');
+                            
+                            const analysisDetails = document.getElementById('analysisDetails');
+                            analysisDetails.innerHTML = analysisHtml;
+                            analysisDetails.style.display = 'block';
                         };
+
+                        // Auto-play the audio when artwork is ready
+                        if (audioPlayer && audioPlayer.src) {
+                            audioPlayer.play().catch(e => console.log('Auto-play prevented:', e));
+                        }
                         
                         img.onerror = () => {
-                            statusDiv.innerHTML = `
-                                Image failed to load, but audio was analyzed.
-                                <div class="features">
-                                    Tempo: ${data.features.tempo} BPM<br>
-                                    Brightness: ${data.features.centroid}<br>
-                                    Texture: ${data.features.zcr}<br>
-                                    Volume: ${data.features.volume}
+                            statusDiv.innerHTML = 'Image failed to load, but audio was analyzed.';
+                            statusDiv.classList.add('err');
+                            
+                            // Still show the analysis details
+                            let analysisHtml = `
+                                <div class="features-grid">
+                                    <div class="feature-item">
+                                        <span class="feature-label">Tempo</span>
+                                        <span class="feature-value">${data.features.tempo} BPM</span>
+                                    </div>
+                                    <div class="feature-item">
+                                        <span class="feature-label">Brightness</span>
+                                        <span class="feature-value">${data.features.centroid}</span>
+                                    </div>
+                                    <div class="feature-item">
+                                        <span class="feature-label">Texture</span>
+                                        <span class="feature-value">${data.features.zcr}</span>
+                                    </div>
+                                    <div class="feature-item">
+                                        <span class="feature-label">Volume</span>
+                                        <span class="feature-value">${data.features.volume}</span>
+                                    </div>
                                 </div>
                             `;
+                            
+                            const analysisDetails = document.getElementById('analysisDetails');
+                            analysisDetails.innerHTML = analysisHtml;
+                            analysisDetails.style.display = 'block';
                             
                             const fallbackDiv = document.createElement('div');
                             fallbackDiv.style.width = '512px';
