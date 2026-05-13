@@ -2,6 +2,7 @@ from flask import Flask, render_template, jsonify, request
 from flask_cors import CORS
 from flaskwebgui import FlaskUI
 import os
+import sys
 import re
 import tempfile
 import urllib.parse
@@ -12,8 +13,22 @@ import numpy as np
 import syncedlyrics
 from mutagen import File as MutagenFile
 
+
+def _app_resource_root():
+    """Folder that contains templates/ and static/ (source tree or PyInstaller _MEIPASS)."""
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return sys._MEIPASS
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+_resource_root = _app_resource_root()
+
 # Initialize Flask app
-app = Flask(__name__)
+app = Flask(
+    __name__,
+    template_folder=os.path.join(_resource_root, "templates"),
+    static_folder=os.path.join(_resource_root, "static"),
+)
 CORS(app)
 
 # Call to generative AI image API
@@ -393,6 +408,10 @@ def generate_art():
 
 # Run the app
 if __name__ == '__main__':
+    import multiprocessing
+
+    multiprocessing.freeze_support()
+
     # Use flaskwebgui to create desktop window
     # Setting close_server_on_exit=True ensures everything shuts down properly
     ui = FlaskUI(
