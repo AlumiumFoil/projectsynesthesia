@@ -2,6 +2,7 @@ from flask import Flask, render_template, jsonify, request
 from flask_cors import CORS
 from flaskwebgui import FlaskUI
 import os
+import re
 import tempfile
 import urllib.parse
 import requests
@@ -72,6 +73,12 @@ def extract_keywords_from_lyrics(lyrics):
         return ""
     
     try:
+        # Clean and filter out any remaining timestamp patterns
+        cleaned_lyrics = re.sub(r'\[\d{2}:\d{2}\.\d{3}\]', '', lyrics)
+        cleaned_lyrics = re.sub(r'\[\d{2}:\d{2}\.\d{2}\]', '', cleaned_lyrics)
+        cleaned_lyrics = re.sub(r'\[\d{2}:\d{2}\]', '', cleaned_lyrics)
+        cleaned_lyrics = re.sub(r'\[.*?\]', '', cleaned_lyrics)
+
         # Common words to ignore (stopwords)
         stopwords = {'the', 'and', 'to', 'of', 'a', 'in', 'is', 'it', 'you', 'that', 
                      'was', 'for', 'on', 'are', 'with', 'as', 'i', 'be', 'this', 'have',
@@ -141,10 +148,21 @@ def fetch_lyrics_from_title_artist(title, artist):
         
         if lyrics:
             print(f"Successfully fetched lyrics ({len(lyrics)} characters)")
-            # Clean LRC timestamps if present
+            # Clean LRC timestamps and other metadata
             import re
-            plain_lyrics = re.sub(r'\[\d{2}:\d{2}\.\d{2}\]', '', lyrics)
-            plain_lyrics = re.sub(r'\n\s*\n', '\n', plain_lyrics).strip()
+            
+            # Remove timestamp patterns like [00:38.287], [00:37.945], [00:00.00]
+            plain_lyrics = re.sub(r'\[\d{2}:\d{2}\.\d{3}\]', '', lyrics)
+            plain_lyrics = re.sub(r'\[\d{2}:\d{2}\.\d{2}\]', '', plain_lyrics)
+            plain_lyrics = re.sub(r'\[\d{2}:\d{2}\]', '', plain_lyrics)
+            
+            # Remove any remaining bracket content
+            plain_lyrics = re.sub(r'\[.*?\]', '', plain_lyrics)
+            
+            # Remove extra whitespace and blank lines
+            plain_lyrics = re.sub(r'\n\s*\n', '\n', plain_lyrics)
+            plain_lyrics = re.sub(r'^\s+|\s+$', '', plain_lyrics)
+            
             return plain_lyrics
         else:
             print("No lyrics found for this query")
@@ -337,12 +355,15 @@ def generate_art():
 
         # DEBUGGING - Verify the URL works
         try:
-            response = requests.get(image_url, headers=headers, timeout=10)
+            response = requests.get(image_url, headers=headers, timeout=30)  # Increased timeout
             if response.status_code == 200:
-                # The URL is valid
-                pass
+                print(f"Image generation initiated successfully")
+            elif response.status_code == 429:
+                print(f"Rate limit hit, but URL may still work: {response.status_code}")
             else:
                 print(f"Image generation returned status: {response.status_code}")
+        except requests.exceptions.Timeout:
+            print(f"Image generation timed out, but URL may still be valid")
         except Exception as img_error:
             print(f"Image request error: {img_error}")
 

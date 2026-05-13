@@ -354,9 +354,9 @@
                         };
 
                         // Auto-play the audio when artwork is ready
-                        if (audioPlayer && audioPlayer.src) {
-                            audioPlayer.play().catch(e => console.log('Auto-play prevented:', e));
-                        }
+                        // if (audioPlayer && audioPlayer.src) {
+                        //     audioPlayer.play().catch(e => console.log('Auto-play prevented:', e));
+                        // }
                         
                         img.onerror = () => {
                             statusDiv.innerHTML = 'Image failed to load, but audio was analyzed.';
