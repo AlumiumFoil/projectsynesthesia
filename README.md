@@ -6,10 +6,10 @@ The current version includes a simple browser UI, microphone recording, backend 
 
 ## Features
 
-- Records 3 seconds of audio from the user's microphone.
-- Sends recorded audio to the Flask backend using `FormData`.
+- Allows file upload for mp3, mp4, wav, flac, ogg, m4a, aac files.
+- Sends uploaded audio to the Flask backend using `FormData`.
 - Provides a `/api/health` endpoint to confirm the backend is running.
-- Provides a `/api/generate` endpoint as the future entry point for audio processing and image generation.
+- Provides a `/api/generate` endpoint that processes audio and prompts an AI model for image generation.
 - Runs as a desktop-style app window through `flaskwebgui`.
 
 ## Project Structure
